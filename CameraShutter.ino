@@ -7,8 +7,12 @@ long int shutter_duration = 60000;
 long int shutter_start = millis();
 long int curr_time = millis();
 
+long int waking_start = millis();
+long int camera_wake_before_shutter = 3000;
+bool is_waking = false;
+
 bool is_held = false;
-long int shutter_hold_duration = 400;
+long int shutter_hold_duration = 900;
 long int shutter_hold_start = millis();
 long int shutter_hold_end = millis();
 
@@ -26,7 +30,7 @@ int last_incr_state = LOW;
 int last_decr_state = LOW;
 
 void setup() {
-//  Serial.begin(9600);
+  Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY_SIGNAL, OUTPUT);
   pinMode(INCR_BTN, INPUT_PULLUP);
@@ -72,6 +76,9 @@ void handle_shutter(long int shutter_end) {
     is_held = true;
     shutter_start = millis();
     shutter_hold_start = millis();
+  } else if (shutter_duration >= min_shutter_duration && shutter_end - shutter_start == shutter_duration - camera_wake_before_shutter) {
+    is_waking = true;
+    waking_start = millis();
   }
 
   if (is_held) {
@@ -81,6 +88,13 @@ void handle_shutter(long int shutter_end) {
     if (shutter_hold_elapsed >= shutter_hold_duration) {
       is_held = false;
 //      Serial.println("Release");
+    }
+  } else if (is_waking) {
+    Serial.println(shutter_end - waking_start);
+    digitalWrite(RELAY_SIGNAL, HIGH);
+    if (shutter_end - waking_start >= 100) {
+      digitalWrite(RELAY_SIGNAL, LOW);
+      is_waking = false;
     }
   } else {
     digitalWrite(RELAY_SIGNAL, LOW);
