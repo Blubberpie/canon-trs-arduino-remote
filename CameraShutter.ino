@@ -2,8 +2,8 @@
 #define INCR_BTN 10
 #define DECR_BTN 11
 
-long int min_shutter_duration = 5000;
-long int shutter_duration = 60000;
+long int min_shutter_duration = 1000; // 5000
+long int shutter_duration = 2000; // 60000
 long int shutter_start = millis();
 long int curr_time = millis();
 
@@ -12,7 +12,7 @@ long int camera_wake_before_shutter = 3000;
 bool is_waking = false;
 
 bool is_held = false;
-long int shutter_hold_duration = 900;
+long int shutter_hold_duration = 2300; // 900
 long int shutter_hold_start = millis();
 long int shutter_hold_end = millis();
 
@@ -30,7 +30,7 @@ int last_incr_state = LOW;
 int last_decr_state = LOW;
 
 void setup() {
-  Serial.begin(9600);
+//  Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY_SIGNAL, OUTPUT);
   pinMode(INCR_BTN, INPUT_PULLUP);
@@ -71,14 +71,15 @@ void handle_blink(long int curr_time) {
 void handle_shutter(long int shutter_end) {
 //    Serial.println(shutter_duration);
 
-  if (shutter_end - shutter_start >= shutter_duration && shutter_duration >= min_shutter_duration) {
+  if (!is_held && shutter_end - shutter_start >= shutter_duration && shutter_duration >= min_shutter_duration) {
 //    Serial.println("Shooting");
     is_held = true;
     shutter_start = millis();
     shutter_hold_start = millis();
   } else if (shutter_duration >= min_shutter_duration && shutter_end - shutter_start == shutter_duration - camera_wake_before_shutter) {
-    is_waking = true;
-    waking_start = millis();
+//    is_waking = true;
+//    waking_start = millis();
+      int abcd = 0; // nothing
   }
 
   if (is_held) {
@@ -87,10 +88,11 @@ void handle_shutter(long int shutter_end) {
     digitalWrite(RELAY_SIGNAL, HIGH);
     if (shutter_hold_elapsed >= shutter_hold_duration) {
       is_held = false;
+      shutter_start = millis();
 //      Serial.println("Release");
     }
   } else if (is_waking) {
-    Serial.println(shutter_end - waking_start);
+//    Serial.println(shutter_end - waking_start);
     digitalWrite(RELAY_SIGNAL, HIGH);
     if (shutter_end - waking_start >= 100) {
       digitalWrite(RELAY_SIGNAL, LOW);
