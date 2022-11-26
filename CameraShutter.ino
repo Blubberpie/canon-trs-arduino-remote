@@ -1,47 +1,6 @@
 #include <string.h>
 #include <LiquidCrystal_I2C.h>
-
-#define RELAY_SIGNAL 9
-#define UP_BTN 10
-#define DOWN_BTN 11
-#define MODE_BTN 8
-
-// SDA: A4
-// SCL: A5
-// Possible addresses: 0x27, 0x38, 0x7C
-LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x38, 16, 2);
-
-const int BTN_COUNT = 3;
-const int MODE_COUNT = 4;
-
-const int ALL_BUTTONS[BTN_COUNT] = {UP_BTN, DOWN_BTN, MODE_BTN};
-int buttonStates[BTN_COUNT] = {};
-
-enum Button { up, down };
-
-unsigned long debounceTime = 150;
-unsigned long btnsLastPressedTime[BTN_COUNT] = {millis(), millis(), millis()};
-
-bool shallWake = false;
-bool isWaking = false;
-bool isShooting = false;
-
-unsigned long minShutterHoldDuration = 500, minTimeBetweenShots = 500;
-
-unsigned long shutterHoldDuration = 2300;
-unsigned long shutterHoldDurationWake = 100;
-unsigned long timeBetweenShots = 2000;
-
-unsigned long durationIncrement = 5000;
-unsigned long cameraWakeBeforeShot = 3000;
-
-unsigned long lastWakeTime = millis();
-unsigned long lastShotTime = millis();
-unsigned long lastShotStopTime = millis();
-
-unsigned long currentTime = millis();
-
-int selectedMode = 0;
+#include "declarations.h"
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -53,41 +12,9 @@ void setup() {
   lcd.backlight();
 }
 
-void handleShutter(unsigned long currentTime) {
-  unsigned long timeSinceLastStop = currentTime - lastShotStopTime;
-
-  if (
-    shallWake
-    && cameraWakeBeforeShot < timeBetweenShots
-    && timeSinceLastStop >= timeBetweenShots - cameraWakeBeforeShot
-    && timeSinceLastStop < timeBetweenShots
-    && currentTime - lastWakeTime > cameraWakeBeforeShot
-  ) {
-    isWaking = true;
-    lastWakeTime = currentTime;
-  }
-  else if (!isShooting && timeSinceLastStop >= timeBetweenShots) {
-    isShooting = true;
-    lastShotTime = currentTime;
-  }
-  else if (isShooting && currentTime - lastShotTime >= shutterHoldDuration) {
-    isShooting = false;
-    lastShotStopTime = currentTime;
-  }
-
-  if (shallWake && isWaking) {
-    digitalWrite(RELAY_SIGNAL, HIGH);
-    if (currentTime - lastWakeTime >= shutterHoldDurationWake) {
-      digitalWrite(RELAY_SIGNAL, LOW);
-      isWaking = false;
-    }
-  } else {
-    digitalWrite(RELAY_SIGNAL, isShooting ? HIGH : LOW);
-  }
-}
-
-// ================================
-// ================ MODE HANDLING ================
+/* =========================== */
+/* ====== MODE HANDLING ====== */
+/* =========================== */
 
 typedef void (*ModeHandler)(Button button);
 
@@ -135,16 +62,9 @@ ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   incrementorModifier
 };
 
-const int modeNameLen = 16;
-char modeNames[MODE_COUNT][modeNameLen] = {
-  "ON TIME",
-  "OFF TIME",
-  "SHALL WAKE",
-  "INCREMENT"
-};
-
-// ================================
-// ================ BUTTONS ================
+/* =========================== */
+/* ===== BUTTON HANDLING ===== */
+/* =========================== */
 
 typedef void (*ButtonHandler)();
 
@@ -179,16 +99,17 @@ void handleButtons(unsigned long currentTime) {
   }
 }
 
-// ================================
-// ================ DISPLAY ================
+/* =========================== */
+/* ========= DISPLAY ========= */
+/* =========================== */
 
 void handleDisplay() {
-  char upperText[modeNameLen] = "";
-  char lowerText[16] = "";
+  char upperText[LCD_ROW_LEN] = "";
+  char lowerText[LCD_ROW_LEN] = "";
 
-  strcpy(upperText, modeNames[selectedMode]);
+  strcpy(upperText, MODE_NAMES[selectedMode]);
   int upperTextLen = strlen(upperText);
-  memset(upperText + upperTextLen, ' ', modeNameLen - upperTextLen);
+  memset(upperText + upperTextLen, ' ', LCD_ROW_LEN - upperTextLen);
 
   switch (selectedMode) {
     case 0:
@@ -208,7 +129,7 @@ void handleDisplay() {
   }
 
   int lowerTextLen = strlen(lowerText);
-  memset(lowerText + lowerTextLen, ' ', 16 - lowerTextLen);
+  memset(lowerText + lowerTextLen, ' ', LCD_ROW_LEN - lowerTextLen);
 
   lcd.setCursor(0, 0);
   lcd.print(upperText);
@@ -216,7 +137,42 @@ void handleDisplay() {
   lcd.print(lowerText);
 }
 
-// ================================
+/* =========================== */
+/* ========= SHUTTER ========= */
+/* =========================== */
+
+void handleShutter(unsigned long currentTime) {
+  unsigned long timeSinceLastStop = currentTime - lastShotStopTime;
+
+  if (
+    shallWake
+    && cameraWakeBeforeShot < timeBetweenShots
+    && timeSinceLastStop >= timeBetweenShots - cameraWakeBeforeShot
+    && timeSinceLastStop < timeBetweenShots
+    && currentTime - lastWakeTime > cameraWakeBeforeShot
+  ) {
+    isWaking = true;
+    lastWakeTime = currentTime;
+  }
+  else if (!isShooting && timeSinceLastStop >= timeBetweenShots) {
+    isShooting = true;
+    lastShotTime = currentTime;
+  }
+  else if (isShooting && currentTime - lastShotTime >= shutterHoldDuration) {
+    isShooting = false;
+    lastShotStopTime = currentTime;
+  }
+
+  if (shallWake && isWaking) {
+    digitalWrite(RELAY_SIGNAL, HIGH);
+    if (currentTime - lastWakeTime >= shutterHoldDurationWake) {
+      digitalWrite(RELAY_SIGNAL, LOW);
+      isWaking = false;
+    }
+  } else {
+    digitalWrite(RELAY_SIGNAL, isShooting ? HIGH : LOW);
+  }
+}
 
 void loop() {
   currentTime = millis();
