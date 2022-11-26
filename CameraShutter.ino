@@ -1,133 +1,209 @@
+#include <string.h>
+#include <LiquidCrystal_I2C.h>
+
 #define RELAY_SIGNAL 9
-#define INCR_BTN 10
-#define DECR_BTN 11
+#define UP_BTN 10
+#define DOWN_BTN 11
+#define MODE_BTN 8
 
-long int min_shutter_duration = 1000; // 5000
-long int shutter_duration = 2000; // 60000
-long int shutter_start = millis();
-long int curr_time = millis();
+// SDA: A4
+// SCL: A5
+// Possible addresses: 0x27, 0x38, 0x7C
+LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x38, 16, 2);
 
-long int waking_start = millis();
-long int camera_wake_before_shutter = 3000;
-bool is_waking = false;
+const int btnCount = 3;
+const int modeCount = 4;
 
-bool is_held = false;
-long int shutter_hold_duration = 2300; // 900
-long int shutter_hold_start = millis();
-long int shutter_hold_end = millis();
+int ALL_BUTTONS[btnCount] = {UP_BTN, DOWN_BTN, MODE_BTN};
+int buttonStates[btnCount] = {};
 
-long int shutter_duration_incr = 15000;
+enum Button { up, down };
 
-bool should_blink = false;
-int blink_state = LOW;
-long int led_blink_time = 100;
-long int led_off_time = 1000;
-int blink_count = 0;
-long int last_blink_state_time = millis();
-long int last_blink_time = millis();
+unsigned long debounceTime = 150;
+unsigned long btnsLastPressedTime[btnCount] = {millis(), millis(), millis()};
 
-int last_incr_state = LOW;
-int last_decr_state = LOW;
+bool shallWake = false;
+bool isWaking = false;
+bool isShooting = false;
+
+unsigned long minShutterHoldDuration = 500, minTimeBetweenShots = 500;
+
+unsigned long shutterHoldDuration = 2300;
+unsigned long timeBetweenShots = 2000;
+
+unsigned long durationIncrement = 15000;
+unsigned long cameraWakeBeforeShot = 3000;
+
+unsigned long lastWakeTime = millis();
+unsigned long lastWakeStopTime = millis();
+unsigned long lastShotTime = millis();
+unsigned long lastShotStopTime = millis();
+
+unsigned long currentTime = millis();
+
+int selectedMode = 0;
 
 void setup() {
-//  Serial.begin(9600);
+  Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY_SIGNAL, OUTPUT);
-  pinMode(INCR_BTN, INPUT_PULLUP);
-  pinMode(DECR_BTN, INPUT_PULLUP);
+  pinMode(UP_BTN, INPUT_PULLUP);
+  pinMode(DOWN_BTN, INPUT_PULLUP);
+  pinMode(MODE_BTN, INPUT_PULLUP);
+  lcd.init();
+  lcd.backlight();
 }
 
-void handle_blink(long int curr_time) {
-  int mins = shutter_duration / 60000;
-
-  //  Serial.println(blink_count);
-  if (blink_count > 0) {
-    digitalWrite(LED_BUILTIN, blink_state);
+void handleShutter(unsigned long currentTime) {
+  if (!isShooting && currentTime - lastShotStopTime >= timeBetweenShots) {
+    isShooting = true;
+    lastShotTime = millis();
+  }
+  else if (isShooting && currentTime - lastShotTime >= shutterHoldDuration) {
+    isShooting = false;
+    lastShotStopTime = millis();
   }
 
-  if (!should_blink && curr_time - last_blink_time >= led_off_time) {
-    should_blink = true;
-  }
-
-  if (should_blink) {
-    int last_blink_state = blink_state;
-    if (curr_time - last_blink_state_time >= led_blink_time) {
-      blink_state = !blink_state;
-      last_blink_state_time = millis();
-    }
-    if (blink_state && blink_state != last_blink_state) {
-      blink_count += 1;
-    }
-    if (blink_count > mins) {
-      blink_count = 0;
-      should_blink = false;
-      last_blink_time = millis();
-    }
-  } else {
-    digitalWrite(LED_BUILTIN, LOW);
-  }
+  digitalWrite(RELAY_SIGNAL, isShooting ? HIGH : LOW);
 }
 
-void handle_shutter(long int shutter_end) {
-//    Serial.println(shutter_duration);
+// ================================
+// ================ MODE HANDLING ================
 
-  if (!is_held && shutter_end - shutter_start >= shutter_duration && shutter_duration >= min_shutter_duration) {
-//    Serial.println("Shooting");
-    is_held = true;
-    shutter_start = millis();
-    shutter_hold_start = millis();
-  } else if (shutter_duration >= min_shutter_duration && shutter_end - shutter_start == shutter_duration - camera_wake_before_shutter) {
-//    is_waking = true;
-//    waking_start = millis();
-      int abcd = 0; // nothing
-  }
+typedef void (*ModeHandler)(Button button);
 
-  if (is_held) {
-    shutter_hold_end = millis();
-    long int shutter_hold_elapsed = shutter_hold_end - shutter_hold_start;
-    digitalWrite(RELAY_SIGNAL, HIGH);
-    if (shutter_hold_elapsed >= shutter_hold_duration) {
-      is_held = false;
-      shutter_start = millis();
-//      Serial.println("Release");
-    }
-  } else if (is_waking) {
-//    Serial.println(shutter_end - waking_start);
-    digitalWrite(RELAY_SIGNAL, HIGH);
-    if (shutter_end - waking_start >= 100) {
-      digitalWrite(RELAY_SIGNAL, LOW);
-      is_waking = false;
-    }
-  } else {
-    digitalWrite(RELAY_SIGNAL, LOW);
+void onDurationModifier(Button button) {
+  switch (button) {
+  case up:
+    shutterHoldDuration += durationIncrement;
+    break;
+  case down:
+    Serial.println(shutterHoldDuration - durationIncrement);
+    shutterHoldDuration = durationIncrement > shutterHoldDuration ? minShutterHoldDuration : shutterHoldDuration - durationIncrement;
+    break;
   }
 }
 
-void handle_buttons() {
-  int incr_reading = !digitalRead(INCR_BTN);
-  int decr_reading = !digitalRead(DECR_BTN);
-
-  if (incr_reading && !last_incr_state) {
-    shutter_start = millis();
-    shutter_duration += shutter_duration_incr;
-    last_incr_state = HIGH;
-  } else if (!incr_reading && last_incr_state) {
-    last_incr_state = LOW;
-  }
-
-  if (decr_reading && !last_decr_state) {
-    shutter_start = millis();
-    shutter_duration = max(0, shutter_duration - shutter_duration_incr);
-    last_decr_state = HIGH;
-  } else if (!decr_reading && last_decr_state) {
-    last_decr_state = LOW;
+void offDurationModifier(Button button) {
+  switch (button) {
+  case up:
+    timeBetweenShots += durationIncrement;
+    break;
+  case down:
+    timeBetweenShots = durationIncrement > timeBetweenShots ? minTimeBetweenShots : timeBetweenShots - durationIncrement;
+    break;
   }
 }
+
+void toggleWaker(Button button) {
+  shallWake = !shallWake;
+}
+
+void incrementorModifier(Button button) {
+  switch (button) {
+  case up:
+    durationIncrement += 500;
+    break;
+  case down:
+    durationIncrement = 500 > durationIncrement ? minTimeBetweenShots : durationIncrement - 500;
+    break;
+  }
+}
+
+ModeHandler MODE_HANDLERS[modeCount] = {
+  onDurationModifier,
+  offDurationModifier,
+  toggleWaker,
+  incrementorModifier
+};
+
+const int modeNameLen = 16;
+char modeNames[modeCount][modeNameLen] = {
+  "ON TIME",
+  "OFF TIME",
+  "SHALL WAKE",
+  "INCREMENT"
+};
+
+// ================================
+// ================ BUTTONS ================
+
+typedef void (*ButtonHandler)();
+
+void handleUp() {
+  MODE_HANDLERS[selectedMode](up);
+}
+
+void handleDown() {
+  MODE_HANDLERS[selectedMode](down);
+}
+
+void handleMode() {
+  selectedMode = (selectedMode + 1) % modeCount;
+}
+
+ButtonHandler BUTTON_HANDLERS[btnCount] = {
+  handleUp,
+  handleDown,
+  handleMode
+};
+
+void handleButtons(unsigned long currentTime) {
+  for(int i = 0; i < btnCount; i++) {
+    int buttonReading = !digitalRead(ALL_BUTTONS[i]);
+    if (currentTime - btnsLastPressedTime[i] > debounceTime && buttonReading && !buttonStates[i]) {
+      btnsLastPressedTime[i] = currentTime;
+      buttonStates[i] = HIGH;
+      BUTTON_HANDLERS[i]();
+    } else if (!buttonReading && buttonStates[i]) {
+      buttonStates[i] = LOW;
+    }
+  }
+}
+
+// ================================
+// ================ DISPLAY ================
+
+void handleDisplay() {
+  char upperText[modeNameLen] = "";
+  char lowerText[16] = "";
+
+  strcpy(upperText, modeNames[selectedMode]);
+  int upperTextLen = strlen(upperText);
+  memset(upperText + upperTextLen, ' ', modeNameLen - upperTextLen);
+
+  switch (selectedMode) {
+    case 0:
+      sprintf(lowerText, "%ss", String(shutterHoldDuration / 1000.0f).c_str());
+      break;
+    case 1:
+      sprintf(lowerText, "%ss", String(timeBetweenShots / 1000.0f).c_str());
+      break;
+    case 2:
+      sprintf(lowerText, "%s", shallWake ? "YES" : "NO");
+      break;
+    case 3:
+      sprintf(lowerText, "%ss", String(durationIncrement / 1000.0f).c_str());
+      break;
+    default:
+      break;
+  }
+
+  int lowerTextLen = strlen(lowerText);
+  memset(lowerText + lowerTextLen, ' ', 16 - lowerTextLen);
+
+  lcd.setCursor(0, 0);
+  lcd.print(upperText);
+  lcd.setCursor(0, 1);
+  lcd.print(lowerText);
+}
+
+// ================================
 
 void loop() {
-  curr_time = millis();
+  currentTime = millis();
 
-  handle_blink(curr_time);
-  handle_shutter(curr_time);
-  handle_buttons();
+  handleShutter(currentTime);
+  handleButtons(currentTime);
+  handleDisplay();
 }
