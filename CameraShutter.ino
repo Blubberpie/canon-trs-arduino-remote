@@ -11,16 +11,16 @@
 // Possible addresses: 0x27, 0x38, 0x7C
 LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x38, 16, 2);
 
-const int btnCount = 3;
-const int modeCount = 4;
+const int BTN_COUNT = 3;
+const int MODE_COUNT = 4;
 
-int ALL_BUTTONS[btnCount] = {UP_BTN, DOWN_BTN, MODE_BTN};
-int buttonStates[btnCount] = {};
+const int ALL_BUTTONS[BTN_COUNT] = {UP_BTN, DOWN_BTN, MODE_BTN};
+int buttonStates[BTN_COUNT] = {};
 
 enum Button { up, down };
 
 unsigned long debounceTime = 150;
-unsigned long btnsLastPressedTime[btnCount] = {millis(), millis(), millis()};
+unsigned long btnsLastPressedTime[BTN_COUNT] = {millis(), millis(), millis()};
 
 bool shallWake = false;
 bool isWaking = false;
@@ -29,13 +29,13 @@ bool isShooting = false;
 unsigned long minShutterHoldDuration = 500, minTimeBetweenShots = 500;
 
 unsigned long shutterHoldDuration = 2300;
+unsigned long shutterHoldDurationWake = 100;
 unsigned long timeBetweenShots = 2000;
 
-unsigned long durationIncrement = 15000;
+unsigned long durationIncrement = 5000;
 unsigned long cameraWakeBeforeShot = 3000;
 
 unsigned long lastWakeTime = millis();
-unsigned long lastWakeStopTime = millis();
 unsigned long lastShotTime = millis();
 unsigned long lastShotStopTime = millis();
 
@@ -44,7 +44,6 @@ unsigned long currentTime = millis();
 int selectedMode = 0;
 
 void setup() {
-  Serial.begin(9600);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY_SIGNAL, OUTPUT);
   pinMode(UP_BTN, INPUT_PULLUP);
@@ -55,16 +54,36 @@ void setup() {
 }
 
 void handleShutter(unsigned long currentTime) {
-  if (!isShooting && currentTime - lastShotStopTime >= timeBetweenShots) {
+  unsigned long timeSinceLastStop = currentTime - lastShotStopTime;
+
+  if (
+    shallWake
+    && cameraWakeBeforeShot < timeBetweenShots
+    && timeSinceLastStop >= timeBetweenShots - cameraWakeBeforeShot
+    && timeSinceLastStop < timeBetweenShots
+    && currentTime - lastWakeTime > cameraWakeBeforeShot
+  ) {
+    isWaking = true;
+    lastWakeTime = currentTime;
+  }
+  else if (!isShooting && timeSinceLastStop >= timeBetweenShots) {
     isShooting = true;
-    lastShotTime = millis();
+    lastShotTime = currentTime;
   }
   else if (isShooting && currentTime - lastShotTime >= shutterHoldDuration) {
     isShooting = false;
-    lastShotStopTime = millis();
+    lastShotStopTime = currentTime;
   }
 
-  digitalWrite(RELAY_SIGNAL, isShooting ? HIGH : LOW);
+  if (shallWake && isWaking) {
+    digitalWrite(RELAY_SIGNAL, HIGH);
+    if (currentTime - lastWakeTime >= shutterHoldDurationWake) {
+      digitalWrite(RELAY_SIGNAL, LOW);
+      isWaking = false;
+    }
+  } else {
+    digitalWrite(RELAY_SIGNAL, isShooting ? HIGH : LOW);
+  }
 }
 
 // ================================
@@ -78,7 +97,6 @@ void onDurationModifier(Button button) {
     shutterHoldDuration += durationIncrement;
     break;
   case down:
-    Serial.println(shutterHoldDuration - durationIncrement);
     shutterHoldDuration = durationIncrement > shutterHoldDuration ? minShutterHoldDuration : shutterHoldDuration - durationIncrement;
     break;
   }
@@ -110,7 +128,7 @@ void incrementorModifier(Button button) {
   }
 }
 
-ModeHandler MODE_HANDLERS[modeCount] = {
+ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   onDurationModifier,
   offDurationModifier,
   toggleWaker,
@@ -118,7 +136,7 @@ ModeHandler MODE_HANDLERS[modeCount] = {
 };
 
 const int modeNameLen = 16;
-char modeNames[modeCount][modeNameLen] = {
+char modeNames[MODE_COUNT][modeNameLen] = {
   "ON TIME",
   "OFF TIME",
   "SHALL WAKE",
@@ -139,17 +157,17 @@ void handleDown() {
 }
 
 void handleMode() {
-  selectedMode = (selectedMode + 1) % modeCount;
+  selectedMode = (selectedMode + 1) % MODE_COUNT;
 }
 
-ButtonHandler BUTTON_HANDLERS[btnCount] = {
+ButtonHandler BUTTON_HANDLERS[BTN_COUNT] = {
   handleUp,
   handleDown,
   handleMode
 };
 
 void handleButtons(unsigned long currentTime) {
-  for(int i = 0; i < btnCount; i++) {
+  for(int i = 0; i < BTN_COUNT; i++) {
     int buttonReading = !digitalRead(ALL_BUTTONS[i]);
     if (currentTime - btnsLastPressedTime[i] > debounceTime && buttonReading && !buttonStates[i]) {
       btnsLastPressedTime[i] = currentTime;
