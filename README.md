@@ -1,3 +1,11 @@
+# IMPORTANT NOTICE
+I have completely revamped the old code, for a more scalable, user-friendly experience. There has been an addition
+of an I2C LCD, a mode switching button, and some other features.
+
+\*\***THESE NEW ADDITIONS ARE NOT REFLECTED IN THE DIAGRAMS/LISTS/GUIDES BELOW**
+
+In other words, the below documentation is not up to date with the code.
+
 # Arduino Remote Control for DSLRs
 An Arduino-powered timer-based remote control for DSLRs that support a TRS 2.5mm jack input.
 
@@ -8,7 +16,6 @@ This is a personal project so there won't be much documentation or help. I made 
 - Triggers the camera every X seconds/minutes.
 - Increment/decrement timer by 15 seconds with two buttons.
 - I had a Focus button + Release button (separated from the Arduino) for manual control
-- On-board LED blinks for the number of minutes of the timer, followed by a one second delay. i.e. 3 mins = blink thrice (wait 1 second, repeat)
 
 ## Parts
 - Arduino UNO R3
