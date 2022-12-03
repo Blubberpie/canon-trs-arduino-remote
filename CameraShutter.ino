@@ -30,7 +30,7 @@ void onDurationModifier(Button button) {
     shutterHoldDuration += durationIncrement;
     break;
   case down:
-    shutterHoldDuration = durationIncrement > shutterHoldDuration ? minShutterHoldDuration : shutterHoldDuration - durationIncrement;
+    shutterHoldDuration = durationIncrement >= shutterHoldDuration ? minShutterHoldDuration : shutterHoldDuration - durationIncrement;
     break;
   }
 }
@@ -41,7 +41,7 @@ void offDurationModifier(Button button) {
     timeBetweenShots += durationIncrement;
     break;
   case down:
-    timeBetweenShots = durationIncrement > timeBetweenShots ? minTimeBetweenShots : timeBetweenShots - durationIncrement;
+    timeBetweenShots = durationIncrement >= timeBetweenShots ? minTimeBetweenShots : timeBetweenShots - durationIncrement;
     break;
   }
 }
@@ -56,7 +56,7 @@ void incrementorModifier(Button button) {
     durationIncrement += 500;
     break;
   case down:
-    durationIncrement = 500 > durationIncrement ? minTimeBetweenShots : durationIncrement - 500;
+    durationIncrement = 500 >= durationIncrement ? minTimeBetweenShots : durationIncrement - 500;
     break;
   }
 }
@@ -73,12 +73,42 @@ void controlRelay(Button button) {
   }
 }
 
+void sessionDurationModifier(Button button) {
+  switch (button) {
+  case up:
+    sessionDuration += sessionDurationIncrement;
+    break;
+  case down:
+    sessionDuration = sessionDurationIncrement >= sessionDuration ? minSessionDuration : sessionDuration - sessionDurationIncrement;
+    break;
+  }
+}
+
+void restartSession(Button button) {
+  enabled = true;
+  lastSessionStartTime = millis();
+}
+
+void sessionDurationIncrementorModifier(Button button) {
+  switch (button) {
+  case up:
+    sessionDurationIncrement += 60000;
+    break;
+  case down:
+    sessionDurationIncrement = 60000 >= sessionDurationIncrement ? 60000 : sessionDurationIncrement - 60000;
+    break;
+  }
+}
+
 ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   onDurationModifier,
   offDurationModifier,
+  sessionDurationModifier,
+  restartSession,
   toggleWaker,
+  controlRelay,
   incrementorModifier,
-  controlRelay
+  sessionDurationIncrementorModifier
 };
 
 /* =========================== */
@@ -138,13 +168,23 @@ void handleDisplay() {
       sprintf(lowerText, "%ss", String(timeBetweenShots / 1000.0f).c_str());
       break;
     case 2:
-      sprintf(lowerText, "%s", shallWake ? "YES" : "NO");
+      sprintf(lowerText, "%sm", String(sessionDuration / 60000.0f).c_str());
       break;
     case 3:
-      sprintf(lowerText, "%ss", String(durationIncrement / 1000.0f).c_str());
+      sprintf(lowerText, "Press to restart");
       break;
     case 4:
+      sprintf(lowerText, "%s", shallWake ? "YES" : "NO");
+      break;
+    case 5:
       sprintf(lowerText, "%s", enabled ? "YES" : "NO");
+      break;
+    case 6:
+      sprintf(lowerText, "%ss", String(durationIncrement / 1000.0f).c_str());
+      break;
+    case 7:
+      sprintf(lowerText, "%sm", String(sessionDurationIncrement / 60000.0f).c_str());
+      break;
     default:
       break;
   }
@@ -195,6 +235,12 @@ void handleShutter(unsigned long currentTime) {
   }
 }
 
+void handleSession(unsigned long currentTime) {
+  if (currentTime - lastSessionStartTime > sessionDuration) {
+    enabled = false;
+  }
+}
+
 void loop() {
   currentTime = millis();
 
@@ -203,6 +249,7 @@ void loop() {
   } else {
     digitalWrite(RELAY_SIGNAL, LOW);
   }
+  handleSession(currentTime);
   handleButtons(currentTime);
   handleDisplay();
 }
