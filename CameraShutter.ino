@@ -85,6 +85,7 @@ void sessionDurationModifier(Button button) {
 }
 
 void restartSession(Button button) {
+  inSession = true;
   enabled = true;
   lastSessionStartTime = millis();
 }
@@ -236,8 +237,9 @@ void handleShutter(unsigned long currentTime) {
 }
 
 void handleSession(unsigned long currentTime) {
-  if (currentTime - lastSessionStartTime > sessionDuration) {
+  if (inSession && currentTime - lastSessionStartTime > sessionDuration) {
     enabled = false;
+    inSession = false;
   }
 }
 

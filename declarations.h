@@ -42,6 +42,7 @@ bool enabled = true;
 bool shallWake = false;
 bool isWaking = false;
 bool isShooting = false;
+bool inSession = true;
 
 int selectedMode = 0;
 int buttonStates[BTN_COUNT] = {};
