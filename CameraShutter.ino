@@ -12,6 +12,12 @@ void setup() {
   lcd.backlight();
 }
 
+void resetTimes() {
+  lastWakeTime = millis();
+  lastShotTime = millis();
+  lastShotStopTime = millis();
+}
+
 /* =========================== */
 /* ====== MODE HANDLING ====== */
 /* =========================== */
@@ -55,11 +61,24 @@ void incrementorModifier(Button button) {
   }
 }
 
+void controlRelay(Button button) {
+  switch (button) {
+  case up:
+    enabled = true;
+    resetTimes();
+    break;
+  case down:
+    enabled = false;
+    break;
+  }
+}
+
 ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   onDurationModifier,
   offDurationModifier,
   toggleWaker,
-  incrementorModifier
+  incrementorModifier,
+  controlRelay
 };
 
 /* =========================== */
@@ -124,6 +143,8 @@ void handleDisplay() {
     case 3:
       sprintf(lowerText, "%ss", String(durationIncrement / 1000.0f).c_str());
       break;
+    case 4:
+      sprintf(lowerText, "%s", enabled ? "YES" : "NO");
     default:
       break;
   }
@@ -177,7 +198,11 @@ void handleShutter(unsigned long currentTime) {
 void loop() {
   currentTime = millis();
 
-  handleShutter(currentTime);
+  if (enabled) {
+    handleShutter(currentTime);
+  } else {
+    digitalWrite(RELAY_SIGNAL, LOW);
+  }
   handleButtons(currentTime);
   handleDisplay();
 }

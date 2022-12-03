@@ -13,7 +13,7 @@ LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x38, 16, 2);
 /* =========================== */
 
 const int BTN_COUNT = 3;
-const int MODE_COUNT = 4;
+const int MODE_COUNT = 5;
 const int LCD_ROW_LEN = 16;
 
 const int ALL_BUTTONS[BTN_COUNT] = {UP_BTN, DOWN_BTN, MODE_BTN};
@@ -21,7 +21,8 @@ const char MODE_NAMES[MODE_COUNT][LCD_ROW_LEN] = {
   "ON TIME",
   "OFF TIME",
   "SHALL WAKE",
-  "INCREMENT"
+  "INCREMENT",
+  "ENABLED"
 };
 
 /* =========================== */
@@ -34,6 +35,7 @@ enum Button { up, down };
 /* ======== VARIABLES ======== */
 /* =========================== */
 
+bool enabled = true;
 bool shallWake = false;
 bool isWaking = false;
 bool isShooting = false;
