@@ -85,9 +85,16 @@ void sessionDurationModifier(Button button) {
 }
 
 void restartSession(Button button) {
-  inSession = true;
-  enabled = true;
-  lastSessionStartTime = millis();
+  switch (button) {
+  case up:
+    inSession = true;
+    enabled = true;
+    lastSessionStartTime = millis();
+    break;
+  case down:
+    inSession = false;
+    break;
+  }
 }
 
 void sessionDurationIncrementorModifier(Button button) {
@@ -172,7 +179,11 @@ void handleDisplay() {
       sprintf(lowerText, "%sm", String(sessionDuration / 60000.0f).c_str());
       break;
     case 3:
-      sprintf(lowerText, "Press to restart");
+      if (inSession) {
+        sprintf(lowerText, "YES %sm", String((currentTime - lastSessionStartTime) / 60000.0f).c_str());
+      } else {
+        sprintf(lowerText, "NO");
+      }
       break;
     case 4:
       sprintf(lowerText, "%s", shallWake ? "YES" : "NO");

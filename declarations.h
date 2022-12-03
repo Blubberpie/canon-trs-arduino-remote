@@ -21,7 +21,7 @@ const char MODE_NAMES[MODE_COUNT][LCD_ROW_LEN] = {
   "ON TIME",
   "OFF TIME",
   "SESSION DURATION",
-  "RESTART SESSION",
+  "SESSION RUNNING",
   "SHALL WAKE",
   "ENABLED",
   "INCREMENT",
@@ -42,7 +42,7 @@ bool enabled = true;
 bool shallWake = false;
 bool isWaking = false;
 bool isShooting = false;
-bool inSession = true;
+bool inSession = false;
 
 int selectedMode = 0;
 int buttonStates[BTN_COUNT] = {};
