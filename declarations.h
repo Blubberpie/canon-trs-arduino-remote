@@ -13,7 +13,7 @@ LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x38, 16, 2);
 /* =========================== */
 
 const int BTN_COUNT = 3;
-const int MODE_COUNT = 8;
+const int MODE_COUNT = 10;
 const int LCD_ROW_LEN = 17;
 
 const int ALL_BUTTONS[BTN_COUNT] = {UP_BTN, DOWN_BTN, MODE_BTN};
@@ -25,7 +25,9 @@ const char MODE_NAMES[MODE_COUNT][LCD_ROW_LEN] = {
   "SHALL WAKE",
   "ENABLED",
   "INCREMENT",
-  "SESSION DUR INCR"
+  "SESSION DUR INCR",
+  "COUNTDOWN",
+  "COUNTDOWN DUR"
 };
 
 /* =========================== */
@@ -43,6 +45,7 @@ bool shallWake = false;
 bool isWaking = false;
 bool isShooting = false;
 bool inSession = false;
+bool countingDown = false;
 
 int selectedMode = 0;
 int buttonStates[BTN_COUNT] = {};
@@ -57,9 +60,11 @@ unsigned long durationIncrement = 5000;
 unsigned long cameraWakeBeforeShot = 3000;
 unsigned long sessionDuration = 900000;
 unsigned long sessionDurationIncrement = 300000;
+unsigned long countdownDuration = 1800000;
 
 unsigned long lastWakeTime = millis();
 unsigned long lastShotTime = millis();
 unsigned long lastShotStopTime = millis();
 unsigned long lastSessionStartTime = millis();
 unsigned long currentTime = millis();
+unsigned long lastCountdownStart = millis();

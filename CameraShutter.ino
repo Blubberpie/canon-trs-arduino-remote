@@ -108,6 +108,29 @@ void sessionDurationIncrementorModifier(Button button) {
   }
 }
 
+void countdownSwitcher(Button button) {
+  switch (button) {
+  case up:
+    countingDown = true;
+    lastCountdownStart = millis();
+    break;
+  case down:
+    countingDown = false;
+    break;
+  }
+}
+
+void countdownDurationModifier(Button button) {
+  switch (button) {
+  case up:
+    countdownDuration += sessionDurationIncrement;
+    break;
+  case down:
+    countdownDuration = sessionDurationIncrement >= countdownDuration ? minSessionDuration : countdownDuration - sessionDurationIncrement;
+    break;
+  }
+}
+
 ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   onDurationModifier,
   offDurationModifier,
@@ -116,7 +139,9 @@ ModeHandler MODE_HANDLERS[MODE_COUNT] = {
   toggleWaker,
   controlRelay,
   incrementorModifier,
-  sessionDurationIncrementorModifier
+  sessionDurationIncrementorModifier,
+  countdownSwitcher,
+  countdownDurationModifier
 };
 
 /* =========================== */
@@ -197,6 +222,16 @@ void handleDisplay() {
     case 7:
       sprintf(lowerText, "%sm", String(sessionDurationIncrement / 60000.0f).c_str());
       break;
+    case 8:
+      if (countingDown) {
+        sprintf(lowerText, "ON %sm", String((currentTime - lastCountdownStart) / 60000.0f).c_str());
+      } else {
+        sprintf(lowerText, "OFF");
+      }
+      break;
+    case 9:
+      sprintf(lowerText, "%sm", String(countdownDuration / 60000.0f).c_str());
+      break;
     default:
       break;
   }
@@ -248,21 +283,29 @@ void handleShutter(unsigned long currentTime) {
 }
 
 void handleSession(unsigned long currentTime) {
-  if (inSession && currentTime - lastSessionStartTime > sessionDuration) {
+  if (!countingDown && inSession && currentTime - lastSessionStartTime > sessionDuration) {
     enabled = false;
     inSession = false;
+  }
+}
+
+void handleCountdown(unsigned long currentTime) {
+  if (countingDown && currentTime - lastCountdownStart > countdownDuration) {
+    countingDown = false;
+    lastSessionStartTime = currentTime;
   }
 }
 
 void loop() {
   currentTime = millis();
 
-  if (enabled) {
+  if (enabled && !countingDown) {
     handleShutter(currentTime);
   } else {
     digitalWrite(RELAY_SIGNAL, LOW);
   }
   handleSession(currentTime);
+  handleCountdown(currentTime);
   handleButtons(currentTime);
   handleDisplay();
 }
